@@ -17,7 +17,7 @@
 	define("WOL_PORT", 4343);
 	define("WOL_LISTEN", '0.0.0.0');
 	define("LIBVIRT_HOST", 'null'); // per docs to connect to localhost
-	define("PACKET_SIZE", (2^15)-1);
+	define("PACKET_SIZE", (2**15)-1);
 
 	echo("WOL Listener initializing\n");
 	foreach(array(SIGKILL, SIGHUP, SIGTERM) as $signal) 
