@@ -7,6 +7,9 @@
 			SLEEP_MS := how long to sleep between UDP checks (since we're non-blocking and in user mode)
 			WOL_PORT := what UDP port to listen to (no raw, as we're in user mode)
 			WOL_LISTEN := leave this alone, or set it to your ethernet adapter's NIC
+		Dependancies:
+			php7+
+			php-libvirt-php
 	**/
 
 	define("SLEEP_MS", 1000000); // Sleep for 1 second between checks
@@ -15,6 +18,25 @@
 	define("WOL_LISTEN", '0.0.0.0');
 	define("LIBVIRT_HOST", 'null'); // per docs to connect to localhost
 	define("PACKET_SIZE", (2^15)-1);
+
+	echo("WOL Listener initializing\n");
+	foreach(array(SIGKILL, SIGHUP, SIGTERM) as $signal) 
+		pcntl_signal($signal, "check_signal");
+	register_shutdown_function("cleanup");
+	echo("Signal Handlers setup\n");
+	echo("Listening for packets\n");
+	while(check_signal() == 0) { // main loop
+		$maclist = get_macinfo(get_connection());
+		for($check = 0; $check < REFRESH_INTERLEAVE; $check++) {
+			if(($mac = check_for_packet($maclist)) !== false) {
+				echo("Starting domain: {$maclist[$mac]['name']}\n");
+				libvirt_domain_create($maclist[$mac]["handle"]);
+			}
+			usleep(SLEEP_MS);
+		}
+	}
+	exit();
+	
 
 	function get_macinfo() {
 		$domains = array();
@@ -83,21 +105,5 @@
 		echo("Closing sockets\n");
 		socket_shutdown(get_socket());
 		socket_close(get_socket());
-	}
-
-	echo("WOL Listener starting up\n");
-	foreach(array(SIGKILL, SIGHUP, SIGTERM) as $signal) 
-		pcntl_signal($signal, "check_signal");
-	register_shutdown_function("cleanup");
-
-	while(check_signal() == 0) { // main loop
-		$maclist = get_macinfo(get_connection());
-		for($check = 0; $check < REFRESH_INTERLEAVE; $check++) {
-			if(($mac = check_for_packet($maclist)) !== false) {
-				var_dump($mac, $maclist[$mac]);
-				libvirt_domain_create($maclist[$mac]["handle"]);
-			}
-			usleep(SLEEP_MS);
-		}
 	}
 ?>
