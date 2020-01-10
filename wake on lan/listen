@@ -61,7 +61,7 @@
 		// returns the mac address from a valid WOL packet
 		// if addresses is set, only return if it's a MAC we're looking for
 		$check_mac = false;
-		socket_recv(get_socket(), $buffer, 32768 ,MSG_DONTWAIT);
+		socket_recv(get_socket(), $buffer, PACKET_SIZE ,MSG_DONTWAIT);
 		if(!is_null($buffer)) {
 			$buffer = bin2hex($buffer);
 			if(substr($buffer, 0, 12) == "ffffffffffff") {
