@@ -81,8 +81,8 @@
 
 	function check_signal($int_signal = 0) {
 		static $signals;
-		if(!isset($ignals)) $int_signal = 0;
-		$signals = $int_signal or $signals;
+		if(!isset($ignals)) $signals = 0;
+		$signals = $int_signal | $signals;
 		return $signals; 
 	}
 
