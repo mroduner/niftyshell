@@ -1,0 +1,103 @@
+#!/bin/php
+<?php
+	/**
+		Wake libvirt domain via WOL magic packet
+		Configuration:
+			REFRESH_INTERLEAVE := how often should we do the expensive operations
+			SLEEP_MS := how long to sleep between UDP checks (since we're non-blocking and in user mode)
+			WOL_PORT := what UDP port to listen to (no raw, as we're in user mode)
+			WOL_LISTEN := leave this alone, or set it to your ethernet adapter's NIC
+	**/
+
+	define("SLEEP_MS", 1000000); // Sleep for 1 second between checks
+	define("REFRESH_INTERLEAVE", 60); // 60 * 1000 == once per minute 
+	define("WOL_PORT", 4343);
+	define("WOL_LISTEN", '0.0.0.0');
+	define("LIBVIRT_HOST", 'null'); // per docs to connect to localhost
+	define("PACKET_SIZE", (2^15)-1);
+
+	function get_macinfo() {
+		$domains = array();
+		$maclist = array();
+		$connection = get_connection();
+		foreach(libvirt_list_domains($connection) as $domain) {
+			// iterate through all domains on host
+			$handle = libvirt_domain_lookup_by_name($connection, $domain); 
+			$uuid = bin2hex(libvirt_domain_get_uuid($handle));
+			foreach(libvirt_domain_xml_xpath($handle, "/domain/devices/interface/mac/@address") as $index => $value) {
+				// use xpath to get the virtual macs in use by the domain
+				if(is_int($index)) { // matches are integers, meta are strings
+					$maclist[str_replace(":","", $value)] 
+						= array("handle" => $handle, "name" => $domain,"uuid" => $uuid);
+				}
+			}
+		}
+		return $maclist;
+	}
+
+	function check_for_packet(array $addresses = null) {
+		// returns the mac address from a valid WOL packet
+		// if addresses is set, only return if it's a MAC we're looking for
+		$check_mac = false;
+		socket_recv(get_socket(), $buffer, 32768 ,MSG_DONTWAIT);
+		if(!is_null($buffer)) {
+			$buffer = bin2hex($buffer);
+			if(substr($buffer, 0, 12) == "ffffffffffff") {
+				$check_mac = substr($buffer, 12, 12);
+				if(is_null($addresses) or array_key_exists($check_mac,$addresses)) { // only check if we're looking for this
+					for($i =0; $i < 15; $i++) { // validate packet
+						if(substr($buffer, $i * 12 + 24, 12) != $check_mac) {
+							$check_mac = false;
+							continue;
+						} 
+					}
+				}
+			}
+		}
+		return $check_mac;
+	}
+
+	function check_signal($int_signal = 0) {
+		static $signals;
+		if(!isset($ignals)) $int_signal = 0;
+		$signals = $int_signal or $signals;
+		return $signals; 
+	}
+
+	function get_connection() {
+		static $connection;
+		if(!is_resource($connection)) $connection = libvirt_connect(LIBVIRT_HOST, false);
+		return $connection;
+	}
+
+	function get_socket() {
+		static $socket;
+		if(!is_resource($socket)) {
+			$socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+			socket_bind($socket, WOL_LISTEN, WOL_PORT);
+		}
+		return $socket;
+	}
+
+	function cleanup() {
+		echo("Closing sockets\n");
+		socket_shutdown(get_socket());
+		socket_close(get_socket());
+	}
+
+	echo("WOL Listener starting up\n");
+	foreach(array(SIGKILL, SIGHUP, SIGTERM) as $signal) 
+		pcntl_signal($signal, "check_signal");
+	register_shutdown_function("cleanup");
+
+	while(check_signal() == 0) { // main loop
+		$maclist = get_macinfo(get_connection());
+		for($check = 0; $check < REFRESH_INTERLEAVE; $check++) {
+			if(($mac = check_for_packet($maclist)) !== false) {
+				var_dump($mac, $maclist[$mac]);
+				libvirt_domain_create($maclist[$mac]["handle"]);
+			}
+			usleep(SLEEP_MS);
+		}
+	}
+?>
