@@ -2,9 +2,10 @@
 <?php
     /**
         Usage ./wakeup [--network=broadcast --port=4343 [mac address]
-        This will either send one packet (if network is specified), or a packet
-        to each IPv4 network it detects.
+        This will either send one WOL packet (if network is specified), 
+        or a packet to each IPv4 network it detects.
      */
+
     define("MAC_CHECK", "/^([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})$/");
     define("WOL_HEADER", "\xff\xff\xff\xff\xff\xff");
     define("SYS_CMD", "ip -o -4 route");
@@ -26,12 +27,14 @@
             $packets[] = $packet;    
         }
     }
+    
     $networks = array_key_exists("network", $switches) ? array($switches["network"]) : get_broadcast();
     $port = array_key_exists("port", $switches) ? (int)$switches["port"] : DEFAULT_PORT;
-    foreach($networks as $destination) {
-        foreach($packets as $packet) {
+    
+    foreach($packets as $packet) {
+        foreach($networks as $destination) {
             socket_sendto($socket, $packet, strlen($packet), 0, $destination, $port);
-            echo("Sent WOL packet to {$destination}, port {$port}\n");  
+            echo("Sent WOL packet for " . bin2hex(substr($packet, 6, 6)) . " using {$destination}, port {$port}\n");  
         }
     }
 
