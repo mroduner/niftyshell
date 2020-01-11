@@ -18,7 +18,7 @@ $ source ~/.profile
 ```
 
 ## Using the listener
-  THe script `listen` access your local libvirt installation, and reads the MAC addresses of all domains avaliable on your local hypervisor (tested using KVM+Qemu, should be agnostic though).  IT then listens on UDP port 4343 for a Wake on Lan magic packet, and upon finding a matching entry, will start the domain for you.
+  THe script `listen` accesses your local libvirt installation, and reads the MAC addresses of all domains avaliable on your local hypervisor (tested using KVM+Qemu, should be agnostic though).  IT then listens on UDP port 4343 for a Wake on Lan magic packet, and upon finding a matching entry, will start the domain for you.
   
   Simple usage `$ listen`; that easy
   
