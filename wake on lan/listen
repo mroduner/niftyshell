@@ -1,10 +1,13 @@
-#!/usr/bin/php
+#!/usr/bin/env php
 <?php
 	/**
-		Wake libvirt domain via WOL magic packet
+		Daemon to wake libvirt domains via WOL magic packet
+		Usage:
+			./listen [--port=4343] [--network=0.0.0.0] 
 		Configuration:
 			REFRESH_INTERLEAVE := how often should we do the expensive operations
-			SLEEP_MS := how long to sleep between UDP checks (since we're non-blocking and in user mode)
+			SLEEP_MS := how long to sleep between UDP checks (since we're non-blocking 
+				and in user mode)
 			WOL_PORT := what UDP port to listen to (no raw, as we're in user mode)
 			WOL_LISTEN := leave this alone, or set it to your ethernet adapter's NIC
 		Dependancies:
@@ -12,10 +15,13 @@
 			php-libvirt-php
 	**/
 
-	define("SLEEP_MS", 1000000); // Sleep for 1 second between checks
-	define("REFRESH_INTERLEAVE", 60); // 60 * 1000 == once per minute 
-	define("WOL_PORT", 4343);
-	define("WOL_LISTEN", '0.0.0.0');
+	$parameters = getopt("", array("network::", "port::"));
+
+	define("SLEEP_US", 1000000); // Sleep for 1 second between checks
+	define("REFRESH_INTERLEAVE", 60); // 60 * 1000000 == once per minute 
+	define("WOL_PORT", (array_key_exists("port", $parameters) ? $parameters["port"] : 4343));
+	define("WOL_LISTEN", 
+		(array_key_exists("network", $parameters) ? $parameters["network"] : "0.0.0.0"));
 	define("LIBVIRT_HOST", 'null'); // per docs to connect to localhost
 	define("PACKET_SIZE", (2**15)-1);
 
@@ -32,7 +38,7 @@
 				echo("Starting domain: {$maclist[$mac]['name']}\n");
 				@libvirt_domain_create($maclist[$mac]["handle"]);
 			}
-			usleep(SLEEP_MS);
+			usleep(SLEEP_US);
 		}
 	}
 	exit();

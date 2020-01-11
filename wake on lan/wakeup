@@ -1,4 +1,4 @@
-#!/usr/bin/php
+#!/usr/bin/env php
 <?php
     /**
         Usage ./wakeup [--network=broadcast --port=4343 [mac address]
