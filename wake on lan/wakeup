@@ -1,0 +1,54 @@
+#!/usr/bin/php
+<?php
+    /**
+        Usage ./wakeup [--network=broadcast --port=4343 [mac address]
+        This will either send one packet (if network is specified), or a packet
+        to each IPv4 network it detects.
+     */
+    define("MAC_CHECK", "/^([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})[:-]?([0-9a-fA-F]{2})$/");
+    define("WOL_HEADER", "\xff\xff\xff\xff\xff\xff");
+    define("SYS_CMD", "ip -o -4 route");
+    define("DEFAULT_PORT", 4343);
+
+    $switches = getopt("", array("network::","port::"), $opt_index);
+    $targets = array_slice($argv, $opt_index);
+    $packets = array();
+
+    $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+    socket_set_option($socket, SOL_SOCKET, SO_BROADCAST, 1);
+
+    foreach($targets as $target) {
+        if(preg_match(MAC_CHECK, $target, $matches)) {
+            $mac = "";
+            foreach(array_slice($matches, 1) as $byte) $mac .= chr(hexdec($byte));
+            $packet = WOL_HEADER;
+            for($i = 0; $i<16; $i++) $packet .= $mac;
+            $packets[] = $packet;    
+        }
+    }
+    $networks = array_key_exists("network", $switches) ? array($switches["network"]) : get_broadcast();
+    $port = array_key_exists("port", $switches) ? (int)$switches["port"] : DEFAULT_PORT;
+    foreach($networks as $destination) {
+        foreach($packets as $packet) {
+            socket_sendto($socket, $packet, strlen($packet), 0, $destination, $port);
+            echo("Sent WOL packet to {$destination}, port {$port}\n");  
+        }
+    }
+
+    socket_close($socket);
+    exit();
+
+    function get_broadcast() {
+        $broadcast = array();
+        exec(SYS_CMD, $buffer, $exit_val); // Use the 'ip' command to get route information
+        if($exit_val == 0) {
+            $defaults = array_shift($buffer); // maybe we'll use this line, but for now we'll ignore it
+            foreach($buffer as $line) {
+                $network = explode("/", explode(" ", $line)[0]);
+                $broadcast[] = long2ip(ip2long($network[0]) | 0xffffffff >> $network[1]);
+                // ^ use bitwise masks to create the proper broadcast address
+            }
+        }
+        return $broadcast;
+    }
+?>
